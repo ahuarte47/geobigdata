@@ -1,0 +1,69 @@
+
+/* -----------------------------------------------------------------
+CHILD HTML elements
+----------------------------------------------------------------- */
+
+.toolButton {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #a1a1a1;
+  border-radius: 5px;
+  cursor: pointer;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-color: transparent;
+}
+.toolButton:active {
+	position: relative;
+	top: 1px;
+}
+.toolButton:hover {
+  background-color: #F2F2F2;
+}
+.toolButton:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+.toolActiveButton {
+  border: 2px solid #C93048;
+}
+
+#_activateMarkButton {
+  background-image: url(images/Point32.png);
+}
+#_activatePrevButton {
+  background-image: url(images/Gotoprev32.png);
+}
+#_activateNextButton {
+  background-image: url(images/Gotonext32.png);
+}
+#_activateDemoButton {
+  background-image: url(images/Gotolast32.png);
+}
+
+#_infoTable {
+  font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+  border-collapse: collapse;
+  width: 100%;
+}
+#_infoTable td, #_infoTable th {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+#_infoTable tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+#_infoTable tr:hover {
+  background-color: #ddd;
+}
+#_infoTable th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  text-align: left;
+  background-color: #4CAF50;
+  color: white;
+}
+
+/* -----------------------------------------------------------------
+END
+----------------------------------------------------------------- */

@@ -1,0 +1,425 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <title>EEA NO2 Measures Demo - Leaflet</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!--------------------------------------------------------------------------------- 
+  LEAFLET dependencies for this Leaflet DEMO.
+  ---------------------------------------------------------------------------------->
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css"
+        integrity="sha512-M2wvCLH6DSRazYeZRIm1JnYyh22purTM+FDB5CsyxtQJYeKq83arPe5wgbNmcFXGqiSH2XR8dT/fJISVA1r/zQ=="
+        crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.2.0/dist/leaflet.js"
+        integrity="sha512-lInM/apFSqyy1o6s89K4iQUKg6ppXEgsVxT35HbzUupEVRh2Eu9Wdl4tHj7dZO0s1uvplcYGmt3498TtHq+log=="
+        crossorigin=""></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.4.4/proj4.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4leaflet/1.0.1/proj4leaflet.js"></script>
+
+  <!--------------------------------------------------------------------------------- 
+  DEMO application dependencies
+  ---------------------------------------------------------------------------------->
+
+  <!-- Generic app dependencies -->
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <!-- Measure Stores -->
+  <script src="./app/AbstractMeasureStore.js"></script>
+  <script src="./app/PackagedMeasureStore.js"></script>
+
+  <!-- Heatmap using CPU -->
+  <script src="./lib/heatmap.min.js"></script>
+  <script src="./lib/leaflet-heatmap.js"></script>
+  <!-- Points on Canvas Layer using CPU -->
+  <script src="./lib/L.CanvasLayer.js"></script>
+</head>
+
+<body>
+  <!-- TODO: Define a professional UI -->
+  <table>
+    <tr>
+      <td>
+        <input type="button" class="toolButton" id="_activateMarkButton" 
+               title="Draw points on map instead of Heatmap" 
+               value=" " 
+               onclick="_onActivateMarkButtonClick()" 
+               disabled />
+      </td>
+      <td>
+        <input type="button" class="toolButton" id="_activatePrevButton" 
+               title="Show previous Time-Based record of EEA NO2 measures" 
+               value=" " 
+               onclick="_onActivatePrevButtonClick()" 
+               disabled />
+      </td>
+      <td>
+        <input type="button" class="toolButton" id="_activateNextButton" 
+               title="Show next Time-Based record of EEA NO2 measures" 
+               value=" " 
+               onclick="_onActivateNextButtonClick()" 
+               disabled />
+      </td>
+      <td>
+        <input type="button" class="toolButton" id="_activateDemoButton" 
+               title="Animate a Time-Based store of EEA NO2 measures" 
+               value=" " 
+               onclick="_onActivateDemoButtonClick()" 
+               disabled />
+      </td>
+      <td><div>Timestamp: <span id="dateDiv"></div></td>
+    </tr>
+  </table>
+  <div id="map" style="width:100%; height:700px;"></div>
+  <table>
+    <tr>
+      <td>
+        <img src="../css/images/Classification.png" alt="Classification" id="_classificationImg" style="display:none;">
+      </td>
+      <td>
+        <div>Longitude: <span id="lon"></div>
+        <div>Latitude:  <span id="lat"></div>
+        <div>Zoom: <span id="zoom"></div>
+      </td>
+    </tr>
+  </table>
+
+  <!--------------------------------------------------------------------------------- 
+  Main script
+  ---------------------------------------------------------------------------------->
+  <script>
+    var map = null;
+    var center = [49.2188, 16.5148];
+    var zoom = 5;
+    var baseLayer = null;
+    var heatmapLayer = null;
+    var pointsLayer = null;
+    var animationTimeout = 100;
+
+    // Current/Last Measure record managed (-> e.g. { 'store': s, 'record': r, 'measures': m, 'statistics': stats }).
+    var currentRecordCfg = null;
+
+    // Show a message to user, in this DEMO, only to console!
+    _showMessageText = function (messageType, messageText) { console.log(messageType + ': ' + messageText); };
+
+    // Setup map and attach some map events.
+    var map = L.map('map', {
+    });
+    map.on('mousemove', function (evt) {
+      document.getElementById('lat').innerHTML = evt.latlng.lat.toFixed(6);
+      document.getElementById('lon').innerHTML = evt.latlng.lng.toFixed(6);      
+    });
+    map.on('zoomend', function (evt) {
+      document.getElementById('zoom').innerHTML = map.getZoom();
+    });
+    map.on('moveend', function (evt) {
+      //...
+      var dataCfg = currentRecordCfg;
+      var record = dataCfg != null && dataCfg.measures != null ? measureStore.next() : measureStore.first();
+      setTimeout(function () { _loadMeasuresFromStore(measureStore, record); }, 50);
+    });
+    map.on('click', function (evt) {
+      var coordinate = evt.latlng;
+      var point = this.latLngToContainerPoint(coordinate);
+
+      // ... search nearest feature by brute force, arghhh!, but within a window 16-pixel RECT.
+      var nearestObj = null;
+      var nearestPnt = null;
+      if (currentRecordCfg && currentRecordCfg.measures != null) {
+        var measures = currentRecordCfg.measures;
+        var distance = Number.MAX_VALUE;
+        var xwnd_min = point.x - 8;
+        var ywnd_min = point.y - 8;
+        var xwnd_max = point.x + 8;
+        var ywnd_max = point.y + 8;
+
+        for (var i = 0, icount = measures.length; i < icount; i++) {
+          var record = measures[i];
+          var latlon = new L.LatLng(record[heatmapCfg.latField], record[heatmapCfg.lngField]);
+          var ipoint = this.latLngToContainerPoint(latlon);
+
+          if (ipoint.x < xwnd_min || ipoint.x > xwnd_max) continue;
+          if (ipoint.y < ywnd_min || ipoint.y > ywnd_max) continue;
+
+          var d = latlon.distanceTo(coordinate);
+          if (d < distance) { nearestObj = record; nearestPnt = latlon; distance = d; }
+        }
+      }
+      if (nearestObj != null) {
+        var message = '<table id="_infoTable"><tr><th>Attribute</th><th>Value</th></tr>';
+        for (var name in nearestObj) { message += '<tr><td>' + name + '</td><td>' + nearestObj[name] + '</td></tr>' }
+        message += '</table>';
+        var popup = L.popup();
+        popup.setLatLng(nearestPnt).setContent(message).openOn(map);
+      }
+    });
+    map.once('load', function (evt) {
+      //...
+    });
+    document.getElementById('map').style.cursor = 'help';
+
+    // Create and add BASE TileLayer (http://leafletjs.com/reference-1.2.0.html#tilelayer).
+    var baseLayer = L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png');
+    map.addLayer(baseLayer);
+
+    // --------------------------------------------------------------------------------------------
+    // Event Click handlers.
+    // --------------------------------------------------------------------------------------------
+
+    // Draw points on map instead of Heatmap image.
+    _onActivateMarkButtonClick = function () {
+      var button = document.getElementById('_activateMarkButton');
+      var clsimg = document.getElementById('_classificationImg');
+
+      var dataCfg = currentRecordCfg;
+      if (dataCfg == null || dataCfg.measures == null) return;
+
+      if (button.classList.contains('toolActiveButton')) {
+        button.classList.remove('toolActiveButton');
+        pointsLayer.visible = false;
+        clsimg.style.display = 'none';
+        setTimeout(function () { _drawMeasuresFromStore(dataCfg.store, dataCfg.record, dataCfg.measures, dataCfg.statistics); }, 50);
+      }
+      else {
+        button.classList.add('toolActiveButton');
+        pointsLayer.visible = true;
+        clsimg.style.display = 'block';
+        setTimeout(function () { _drawMeasuresFromStore(dataCfg.store, dataCfg.record, dataCfg.measures, dataCfg.statistics); }, 50);
+      }
+      document.getElementById('map').focus();
+    };
+
+    // Animate a Time-Based draw of NO2 measures of an EEA Dataset store.
+    _onActivateDemoButtonClick = function () {
+      var button = document.getElementById('_activateDemoButton');
+
+      if (button.classList.contains('toolActiveButton')) {
+        button.classList.remove('toolActiveButton');
+      }
+      else {
+        button.classList.add('toolActiveButton');
+
+        // Animate Heatmap!
+        var fasyncFunction = function () {
+          setTimeout(updateFunction, animationTimeout);
+        };
+        var updateFunction = function () {
+          if (button.classList.contains('toolActiveButton')) _loadMeasuresFromStore(measureStore, measureStore.next(), fasyncFunction);
+        };
+        fasyncFunction();
+      }
+      document.getElementById('map').focus();
+    };
+
+    // Show previous Time-Based draw of EEA NO2 measures.
+    _onActivatePrevButtonClick = function () {
+      setTimeout(function () { _loadMeasuresFromStore(measureStore, measureStore.prev()); }, 50);
+      document.getElementById('map').focus();
+    };
+    // Show next Time-Based draw of EEA NO2 measures.
+    _onActivateNextButtonClick = function () {
+      setTimeout(function () { _loadMeasuresFromStore(measureStore, measureStore.next()); }, 50);
+      document.getElementById('map').focus();
+    };
+
+    // --------------------------------------------------------------------------------------------
+    // Initialize NO2-Measures from a EEA Measures Store.
+    // --------------------------------------------------------------------------------------------
+
+    // Draw the Measures of the specified Record.
+    _drawMeasuresFromStore = function (measureStore, record, measures, statistics) {
+      var timeText = new Date(record.time).toString().slice(0,33);
+      document.getElementById('dateDiv').innerHTML = '<b>' + timeText + '</b> (' + measures.length.toLocaleString() + ' values)';
+
+      var currentRecord = { 'store': measureStore, 'record': record, 'measures': measures, 'statistics': statistics }
+
+      if (pointsLayer.visible) {
+        heatmapLayer.setData({ 'data': [] });
+        pointsLayer.setData(currentRecord);
+      }
+      else {
+        heatmapLayer.setData({ 'data': measures, 'min': statistics.min, 'max': statistics.max });
+        pointsLayer.setData(currentRecord);
+      }
+      currentRecordCfg = currentRecord;
+    };
+
+    // Load the Measures of the specified Record.
+    _loadMeasuresFromStore = function (measureStore, record, onLoadFunction, onErrorFunction) {
+      var startTime = Date.now();
+
+      var envelope = map.getBounds();
+      var bounds = [envelope.getWest(), envelope.getSouth(), envelope.getEast(), envelope.getNorth()];
+      var srid = 4326;
+
+      measureStore.load(record, srid, bounds, function (record, measures) {
+        var statistics = null;
+        statistics = measureStore.statisticsOfAttribute(measures, heatmapCfg.valueField);
+
+        // Order by value (Higher values will draw later, and then they will are not hidden).
+        measureStore.sortByAttribute(measures, heatmapCfg.valueField, false);
+
+        _drawMeasuresFromStore(measureStore, record, measures, statistics);
+        if (onLoadFunction != null) onLoadFunction(measureStore, record, measures);
+
+        //var finishTime = Date.now();
+        //_showMessageText('I', '"' + record.time + '" Record loading took '+ ((finishTime-startTime)/1000) + ' seconds');
+      },
+      function (error) {
+        if (onErrorFunction != null) onErrorFunction(error);
+        _showMessageText('E', error.message);
+      });
+    };
+
+    // Here, we define a Measure Store from a Vector Layer in a GeoServer instance.
+    var serverUrl = 'http://localhost:8080/geoserver/ows?';
+    var layerName = 'geowave:geowave_NO2-measures';
+    var startTime = new Date(Date.parse('2017-06-10T12:00:00'));
+    var finalTime = new Date(Date.parse('2017-09-25T14:00:00'));
+    var timeIncrement = 3600 * 1000;
+    //
+    var measureStore = new PackagedMeasureStore(serverUrl, layerName, startTime, finalTime, timeIncrement, {}, function (store) {
+      var button = null;
+      button = document.getElementById('_activateMarkButton');
+      button.disabled = false;
+      button = document.getElementById('_activatePrevButton');
+      button.disabled = false;
+      button = document.getElementById('_activateNextButton');
+      button.disabled = false;
+      button = document.getElementById('_activateDemoButton');
+      button.disabled = false;
+    });
+
+    // --------------------------------------------------------------------------------------------
+    // Initialize the Heatmap using CPU.
+    // https://www.patrick-wied.at/static/heatmapjs/example-heatmap-leaflet.html
+    // --------------------------------------------------------------------------------------------
+
+    // Define heatmap settings
+    var heatmapCfg = {
+      // which field name in your data represents the latitude - default "lat"
+      'latField': 'lat',
+      // which field name in your data represents the longitude - default "lng"
+      'lngField': 'lon',
+      // which field name in your data represents the data value - default "value"
+      'valueField': 'effective_value',
+
+      // radius should be small ONLY if scaleRadius is true (or small radius is intended)
+      // if scaleRadius is false it will be the constant radius used in pixels
+      'radius': 1.0,
+      // opacity of map rendered
+      'maxOpacity': 0.8,
+      // scales the radius based on map zoom
+      'scaleRadius': true,
+      // if set to false the heatmap uses the global maximum for colorization
+      // if activated: uses the data maximum within the current map boundaries 
+      // (there will always be a red spot with useLocalExtremas true)
+      'useLocalExtrema': false
+    };
+    heatmapLayer = new HeatmapOverlay(heatmapCfg);
+    map.addLayer(heatmapLayer);
+
+    // --------------------------------------------------------------------------------------------
+    // Initialize the CanvasLayer to draw the measures directly.
+    // https://github.com/Sumbera/gLayers.Leaflet
+    // --------------------------------------------------------------------------------------------
+
+    // Palette of Colors for NO2-Measures (Or see... 'Heatmap.js -> Canvas2dRenderer::_getColorPalette()')
+    var rampColors = [
+      { min: -5000.0, max: 50.0, color: 'rgb(0,85,0)' },
+      { min: 50.0, max: 100.0, color: 'rgb(0,170,0)' },
+      { min: 100.0, max: 5000.0, color: 'rgb(255,170,0)' }
+    ];
+    var chooseRampColor = function (rampColors, value) {
+      for (var i = 0, icount = rampColors.length; i < icount; i++) {
+        var r = rampColors[i];
+        if (r.min <= value && value <= r.max) return i;
+      }
+      return -1;
+    };
+
+    // Create a Heatmap ramp of colored Circles.
+    var drawableIcons = [];
+    var circleRadius = 8;
+    {
+      var canvas = document.createElement('canvas');
+      canvas.width = 2 * circleRadius;
+      canvas.height = 2 * circleRadius;
+
+      var context = canvas.getContext('2d');
+      var centerX = circleRadius;
+      var centerY = circleRadius;
+      var radiusB = circleRadius - 4;
+
+      // Draw each circle with the current ramp Color.
+      for (var i = 0, icount = rampColors.length; i < icount; i++) {
+        var color = rampColors[i].color;
+        //console.log(i + '-> ' + color);
+
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.beginPath();
+        context.arc(centerX, centerY, radiusB, 0, 2 * Math.PI, false);
+        context.fillStyle = color;
+        context.fill();
+
+        var image = new Image();
+        image.src = canvas.toDataURL(); //-> Slow, better "toDataURL('image/webm')", but for few images enough.
+        drawableIcons.push(image);
+      }
+    }
+
+    // Create a custom CanvasLayer to draw points.
+    var myCustomCanvasLayer = function () {
+      this.visible = false;
+      this.dataCfg = null;
+
+      this.onLayerDidMount = function () {
+        // Prepare custom drawing
+      };
+      this.onLayerWillUnmount = function () {
+        // Custom cleanup
+      };
+      this.setData = function (data) {
+        this.dataCfg = data;
+        this.needRedraw(); // -- Custom data set, here call to drawLayer to redraw all
+      };
+      this.onDrawLayer = function (viewInfo) {
+        var self = this;
+
+        var context = viewInfo.canvas.getContext('2d');
+        context.clearRect(0, 0, viewInfo.canvas.width, viewInfo.canvas.height);
+
+        // Custom draw!
+        if (self.visible && self.dataCfg != null && self.dataCfg.measures != null) {
+          var measures = self.dataCfg.measures;
+
+          for (var i = 0, icount = measures.length; i < icount; i++) {
+            var record = measures[i];
+            var latlon = new L.LatLng(record[heatmapCfg.latField], record[heatmapCfg.lngField]);
+            var mvalue = record[heatmapCfg.valueField];
+
+            if (viewInfo.bounds.contains(latlon)) {
+              var index = chooseRampColor(rampColors, mvalue);
+              if (index == -1) continue;
+              var p = self._map.latLngToContainerPoint(latlon);
+              if (drawableIcons[index] != null) context.drawImage(drawableIcons[index], p.x - circleRadius, p.y - circleRadius);
+            }
+          }
+        }
+      }
+    }
+    myCustomCanvasLayer.prototype = new L.CanvasLayer();
+
+    pointsLayer = new myCustomCanvasLayer();
+    map.addLayer(pointsLayer);
+
+    // --------------------------------------------------------------------------------------------
+
+    // Zoom all.
+    map.setView(new L.LatLng(center[0], center[1]), zoom);
+
+  </script>
+</body>
+</html>
