@@ -20,7 +20,7 @@ import org.geotools.text.Text;
  */
 public class GeoWaveGSProcessFactoryEx extends AnnotatedBeanProcessFactory {
     
-	public GeoWaveGSProcessFactoryEx() {
-		super(Text.text("GeoWave Process Factory"), "geowave", PackageFeatureLayerProcess.class, PackageFeatureCollectionProcess.class);
-	}
+    public GeoWaveGSProcessFactoryEx() {
+        super(Text.text("GeoWave Process Factory"), "geowave", PackageFeatureLayerProcess.class, PackageFeatureCollectionProcess.class);
+    }
 }

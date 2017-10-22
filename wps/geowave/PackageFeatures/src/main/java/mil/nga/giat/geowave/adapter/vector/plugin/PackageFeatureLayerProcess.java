@@ -55,11 +55,11 @@ public class PackageFeatureLayerProcess {
     // Default FilterFactory to use.
     static final FilterFactory2 FF = CommonFactoryFinder.getFilterFactory2();
     
-	@DescribeResult(name = "result", description = "Package of the Feature collection", meta = { "mimeTypes=application/octet-stream" })
-	public RawData execute(
-	    @DescribeParameter(name = "layerName", description = "Input FeatureLayer name")
-	    String featureLayerName,
-	    
+    @DescribeResult(name = "result", description = "Package of the Feature collection", meta = { "mimeTypes=application/octet-stream" })
+    public RawData execute(
+        @DescribeParameter(name = "layerName", description = "Input FeatureLayer name")
+        String featureLayerName,
+        
         @DescribeParameter(name = "bbox", description = "Georeferenced bounding box of the output")
         ReferencedEnvelope envelope,
         @DescribeParameter(name = "filter", description = "Optional filter to apply to the output", min = 0, max = 1)
@@ -69,18 +69,18 @@ public class PackageFeatureLayerProcess {
         String timeAttribute,
         @DescribeParameter(name = "outputAttributes", description = "Separated-comma array of numeric Attributes to pack", min = 0, max = 1, defaultValue = "")
         String outputAttributes
-	    )
-	    throws ProcessException, IOException {
-	    
-	    Catalog catalog = (Catalog)GeoServerExtensions.bean("catalog");
+        )
+        throws ProcessException, IOException {
+        
+        Catalog catalog = (Catalog)GeoServerExtensions.bean("catalog");
         if (catalog == null)
             throw new ProcessException("Not found any catalog!");
         
-	    FeatureTypeInfo featureTypeInfo = catalog.getFeatureTypeByName(featureLayerName);
-	    if (featureTypeInfo == null)
-	        throw new ProcessException("Layer '"+ featureLayerName +"' not found in current catalog!");
+        FeatureTypeInfo featureTypeInfo = catalog.getFeatureTypeByName(featureLayerName);
+        if (featureTypeInfo == null)
+            throw new ProcessException("Layer '"+ featureLayerName +"' not found in current catalog!");
 	    
-	    SimpleFeatureSource featureSource = (SimpleFeatureSource)featureTypeInfo.getFeatureSource(null, null);
+        SimpleFeatureSource featureSource = (SimpleFeatureSource)featureTypeInfo.getFeatureSource(null, null);
         SimpleFeatureType featureSchema = featureSource.getSchema();
         String[] valueAttributeNames = outputAttributes != null ? outputAttributes.split(",") : new String[0];
         if (timeAttribute == null) timeAttribute = "";
@@ -113,15 +113,15 @@ public class PackageFeatureLayerProcess {
         }
         
         // --------------------------------------------------------------------------------
-	    // Pack Features.
+        // Pack Features.
         
-	    SimpleFeatureIterator featureIterator = featureSource.getFeatures(filter).features();
-	    try {
-	        byte[] byteArray = GeoWaveGSUtils.packageFeatures(featureSchema, featureIterator, valueAttributeNames, timeAttribute, true, targetCRS);
-	        return new ByteArrayRawData(byteArray, AbstractRawData.BINARY_MIME);
-	    }
-	    finally {
-	        featureIterator.close();
-	    }
-	}
+        SimpleFeatureIterator featureIterator = featureSource.getFeatures(filter).features();
+        try {
+            byte[] byteArray = GeoWaveGSUtils.packageFeatures(featureSchema, featureIterator, valueAttributeNames, timeAttribute, true, targetCRS);
+            return new ByteArrayRawData(byteArray, AbstractRawData.BINARY_MIME);
+        }
+        finally {
+            featureIterator.close();
+        }
+    }
 }

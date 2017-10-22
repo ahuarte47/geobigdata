@@ -37,30 +37,30 @@ import org.opengis.feature.simple.SimpleFeatureType;
     )
 public class PackageFeatureCollectionProcess {
     
-	@DescribeResult(name = "result", description = "Package of the Feature collection", meta = { "mimeTypes=application/octet-stream" })
-	public RawData execute(
+    @DescribeResult(name = "result", description = "Package of the Feature collection", meta = { "mimeTypes=application/octet-stream" })
+    public RawData execute(
 	    @DescribeParameter(name = "data", description = "Input Feature collection")
 	    SimpleFeatureCollection featureCollection,
 	    
-        @DescribeParameter(name = "timeAttribute", description = "Time Attribute to pack", min = 0, max = 1, defaultValue = "")
-        String timeAttribute,
-        @DescribeParameter(name = "outputAttributes", description = "Separated-comma array of numeric Attributes to pack", min = 0, max = 1, defaultValue = "")
-        String outputAttributes
-	    )
-	    throws ProcessException {
-	    
+	    @DescribeParameter(name = "timeAttribute", description = "Time Attribute to pack", min = 0, max = 1, defaultValue = "")
+	    String timeAttribute,
+	    @DescribeParameter(name = "outputAttributes", description = "Separated-comma array of numeric Attributes to pack", min = 0, max = 1, defaultValue = "")
+	    String outputAttributes
+        )
+        throws ProcessException {
+        
         SimpleFeatureType featureSchema = featureCollection.getSchema();
         String[] valueAttributeNames = outputAttributes != null ? outputAttributes.split(",") : new String[0];
         if (timeAttribute == null) timeAttribute = "";
         
-	    // Pack Features.
-	    SimpleFeatureIterator featureIterator = featureCollection.features();
-	    try {
-	        byte[] byteArray = GeoWaveGSUtils.packageFeatures(featureSchema, featureIterator, valueAttributeNames, timeAttribute, true, null);
-	        return new ByteArrayRawData(byteArray, AbstractRawData.BINARY_MIME);
-	    }
-	    finally {
-	        featureIterator.close();
-	    }
-	}
+        // Pack Features.
+        SimpleFeatureIterator featureIterator = featureCollection.features();
+        try {
+            byte[] byteArray = GeoWaveGSUtils.packageFeatures(featureSchema, featureIterator, valueAttributeNames, timeAttribute, true, null);
+            return new ByteArrayRawData(byteArray, AbstractRawData.BINARY_MIME);
+        }
+        finally {
+            featureIterator.close();
+        }
+    }
 }
