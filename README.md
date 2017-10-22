@@ -1,6 +1,6 @@
 This repo consists of two components created to minimize the response size of WFS requests. 
 
-This experimental software is part of a test of integration of a Big Spatial Data platform (Hadoop, HBase, GeoWave and GeoServer).
+This experimental software is part of a [test of integration of a Big Spatial Data platform](https://www.linkedin.com/pulse/testing-big-spatial-data-software-hadoop-hbase-geowave-alvaro-huarte/) (Hadoop, HBase, GeoWave and GeoServer).
 
 ## WPS PackageFeatures module
 It is a GeoServer WPS module to package features of a Vector Layer, or a SimpleFeatureCollection, to a binary stream.
